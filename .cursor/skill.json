@@ -1,0 +1,8 @@
+{
+  "name": "hwpx-report-skill",
+  "description": "실무 의사결정용 HWPX 표준 보고서 생성 스킬 - 채용·교육·영업 도메인 지원",
+  "version": "1.0.0",
+  "customInstructions": {
+    "path": ".cursor/rules/hwpx-report-skill.mdc"
+  }
+}

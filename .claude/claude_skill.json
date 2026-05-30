@@ -1,0 +1,9 @@
+{
+  "name": "hwpx-report-skill",
+  "version": "1.0.0",
+  "description": "실무 의사결정용 HWPX 표준 보고서 생성 스킬. 채용·교육·영업 등 실무 도메인에서 경영진 의사결정 지원 보고서를 HWPX 형식으로 자동 생성합니다.",
+  "instructions": ".claude/skill.md",
+  "tools": [],
+  "author": "hwpx-report-skill contributors",
+  "license": "MIT"
+}
