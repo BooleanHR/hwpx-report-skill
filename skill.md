@@ -79,86 +79,153 @@ HWPX는 ZIP 형식의 패키지 파일이다. 아래 구조를 정확히 준수�
 
 ```
 {파일명}.hwpx  (ZIP 패키지)
-├── mimetype                    ← "application/hwp+zip" (압축 없이 저장)
+├── mimetype          ← "application/hwp+zip" ⚠️ 반드시 ZIP_STORED (압축 없음)
+├── version.xml       ← 버전 정보
+├── settings.xml      ← 문서 설정 (캐럿 위치 등)
 ├── META-INF/
-│   └── container.xml           ← 루트 파일 경로 선언
-├── Contents/
-│   ├── content.hpf             ← 패키지 메타정보 및 매니페스트
-│   ├── header.xml              ← 문서 스타일, 폰트, 레이아웃 설정
-│   └── section0.xml            ← 실제 본문 (단락, 표, 스타일 포함)
-└── Preview/
-    └── PrvText.txt             ← 미리보기 텍스트 (선택)
+│   ├── container.xml ← 루트 파일 경로 선언
+│   └── manifest.xml  ← ODF 매니페스트
+└── Contents/
+    ├── content.hpf   ← 패키지 메타정보 및 매니페스트 (opf: 네임스페이스)
+    ├── header.xml    ← 폰트·스타일·레이아웃 설정 (hh: 네임스페이스)
+    └── section0.xml  ← 실제 본문 (hs:sec 루트, hp: 단락·표)
 ```
 
-### Step 3: XML 핵심 구성 요소
+### Step 3: XML 핵심 구성 요소 및 손상 방지 필수 규칙
 
-#### header.xml - 스타일 및 레이아웃
+#### ⚠️ HWPX 파일 손상 방지 5대 규칙
+
+이 규칙을 위반하면 한글(HWP) 프로그램에서 "파일이 손상되었습니다" 오류가 발생한다.
+
+| # | 규칙 | 잘못된 예 | 올바른 예 |
+|---|------|-----------|-----------|
+| 1 | mimetype은 ZIP_STORED | ZIP_DEFLATED로 압축 | `zipfile.ZipInfo("mimetype")` (기본 = STORED) |
+| 2 | container.xml media-type | `application/hwp+xml` | `application/hwpml-package+xml` |
+| 3 | 네임스페이스 URI | `HPXML/2011/Core` 등 임의 URI | `hwpml/2011/head`, `hwpml/2011/paragraph` 등 정확한 URI |
+| 4 | XML 특수문자 이스케이프 | `<텍스트>` | `&lt;텍스트&gt;` |
+| 5 | 루트 태그 | `<hp:section>` | `<hs:sec>` (section의 루트는 sec) |
+
+#### container.xml - 올바른 media-type
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<hh:hhpml xmlns:hh="http://www.hancom.co.kr/HPXML/2011/Core" version="1.0">
-  <hh:head>
-    <hh:beginNumber page="1" footnote="1" endnote="1" picture="1" table="1" equation="1"/>
-    <hh:refList>
-      <hh:fontfaces>
-        <hh:fontface id="0" type="kor" name="맑은 고딕" isEmbedded="0"/>
-        <hh:fontface id="1" type="sym" name="Symbol" isEmbedded="0"/>
-      </hh:fontfaces>
-      <hh:charProperties>
-        <hh:charProperty id="0" height="1000" textColor="1A1A1A" fontId="0"/>
-        <hh:charProperty id="1" height="1400" textColor="1A1A1A" fontId="0" bold="1"/>
-        <hh:charProperty id="2" height="1000" textColor="1565C0" fontId="0" bold="1"/>
-      </hh:charProperties>
-      <hh:paraProperties>
-        <hh:paraProperty id="0" align="justify" lineSpacing="160"/>
-        <hh:paraProperty id="1" align="center" lineSpacing="160"/>
-      </hh:paraProperties>
-    </hh:refList>
-    <hh:mappingTable>
-      <hh:defaultStyle>
-        <hh:style charPrIdRef="0" paraPrIdRef="0"/>
-      </hh:defaultStyle>
-    </hh:mappingTable>
-  </hh:head>
-</hh:hhpml>
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<ocf:container
+  xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container"
+  xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">
+  <ocf:rootfiles>
+    <!-- ⚠️ media-type은 반드시 hwpml-package+xml (hwp+xml 아님) -->
+    <ocf:rootfile full-path="Contents/content.hpf"
+      media-type="application/hwpml-package+xml"/>
+  </ocf:rootfiles>
+</ocf:container>
 ```
 
-#### section0.xml - 본문 단락 및 표
+#### content.hpf - 실제 한컴 표준 네임스페이스
 
-**단락 (Paragraph)**:
 ```xml
-<hp:section xmlns:hp="http://www.hancom.co.kr/HPXML/2011/Paragraph">
-  <hp:p>
-    <hp:pPr><hp:paraStyle paraPrIDRef="0"/></hp:pPr>
-    <hp:run>
-      <hp:rPr><hp:charStyle charPrIDRef="0"/></hp:rPr>
-      <hp:t>텍스트 내용</hp:t>
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<opf:package
+  xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
+  xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+  xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+  xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"
+  xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
+  xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"
+  xmlns:opf="http://www.idpf.org/2007/opf/"
+  version="" unique-identifier="" id="">
+  <opf:metadata>
+    <opf:title>문서 제목</opf:title>
+    <opf:language>ko</opf:language>
+  </opf:metadata>
+  <opf:manifest>
+    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>
+    <opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>
+    <opf:item id="settings" href="settings.xml" media-type="application/xml"/>
+  </opf:manifest>
+  <opf:spine><opf:itemref idref="section0"/></opf:spine>
+</opf:package>
+```
+
+#### header.xml - 실제 한컴 표준 구조 (hh: 네임스페이스)
+
+```xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
+         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+         ... (전체 HWPML 네임스페이스)
+         version="1.5" secCnt="1">
+  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+  <hh:refList>
+    <hh:fontfaces itemCnt="1">
+      <hh:fontface lang="HANGUL" fontCnt="1">
+        <hh:font id="0" face="맑은 고딕" type="TTF" isEmbedded="0">
+          <hh:typeInfo familyType="FCAT_GOTHIC" .../>
+        </hh:font>
+      </hh:fontface>
+    </hh:fontfaces>
+    <hh:borderFills itemCnt="3">
+      <!-- ID=0: 기본(테두리없음), ID=1: 표셀(회색선), ID=2: 헤더(파란배경) -->
+    </hh:borderFills>
+    <hh:charProperties itemCnt="4">
+      <!-- ID=0: 기본 본문(검정 10pt), ID=1: 제목(14pt 굵게) -->
+      <!-- ID=2: 강조(파란색 굵게), ID=3: 표헤더(흰색 굵게) -->
+    </hh:charProperties>
+    <hh:paraProperties itemCnt="2">
+      <!-- ID=0: 기본(왼쪽), ID=1: 가운데 -->
+    </hh:paraProperties>
+    <hh:styles itemCnt="1">
+      <hh:style type="PARA" id="0" name="바탕글" paraPrIDRef="0" charPrIDRef="0" .../>
+    </hh:styles>
+  </hh:refList>
+</hh:head>
+```
+
+#### section0.xml - 루트 태그는 hs:sec
+
+```xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<!-- ⚠️ 루트는 hs:sec (hp:section 아님) -->
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+        ... (전체 HWPML 네임스페이스)>
+  <!-- 첫 단락에 섹션 속성(hp:secPr) 포함 -->
+  <hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+    <hp:run charPrIDRef="0">
+      <hp:secPr textDirection="HORIZONTAL" ...>
+        <hp:pagePr landscape="PORTRAIT" width="59528" height="84188" gutterType="LEFT_ONLY">
+          <hp:margin header="4251" footer="4251" gutter="0" left="6236" right="6236"
+                     top="5669" bottom="4819"/>
+        </hp:pagePr>
+      </hp:secPr>
     </hp:run>
   </hp:p>
-</hp:section>
-```
-
-**표 (Table)**:
-```xml
-<hp:tbl>
-  <hp:tblPr rowCount="N" colCount="M" cellSpacing="0">
-    <hp:insz width="전체너비" height="행높이" widthType="dxa"/>
-  </hp:tblPr>
-  <hp:tr>
-    <hp:tc>
-      <hp:tcPr>
-        <hp:tcBdr><hp:top w:val="single" w:sz="4"/></hp:tcBdr>
-        <hp:shd w:val="clear" w:color="1565C0"/>
-      </hp:tcPr>
-      <hp:p><hp:run><hp:t>헤더 텍스트</hp:t></hp:run></hp:p>
-    </hp:tc>
-  </hp:tr>
-</hp:tbl>
+  <!-- 이후 본문 단락 및 표 -->
+  <hp:p id="2" paraPrIDRef="0" styleIDRef="0" ...>
+    <hp:run charPrIDRef="0"><hp:t>텍스트 내용</hp:t></hp:run>
+  </hp:p>
+  <!-- 표 (hp:tbl) -->
+  <hp:tbl id="3" numRowAtRef="2" numColAtRef="3" cellSpacing="0" borderFillIDRef="1">
+    <hp:sz width="47056" height="1850"/>
+    <hp:tr height="1000" outlineLevel="0" repeatHeader="1">
+      <!-- 헤더 셀: borderFillIDRef=2 (파란 배경), charPrIDRef=3 (흰색 굵은) -->
+      <hp:tc borderFillIDRef="2">
+        <hp:cellAddr rowAddr="0" colAddr="0"/>
+        <hp:cellSpan rowSpan="1" colSpan="1"/>
+        <hp:cellSz width="15685" height="1000"/>
+        <hp:cellMargin left="141" right="141" top="0" bottom="0"/>
+        <hp:p id="4" paraPrIDRef="0" ...>
+          <hp:run charPrIDRef="3"><hp:t>헤더</hp:t></hp:run>
+        </hp:p>
+      </hp:tc>
+    </hp:tr>
+  </hp:tbl>
+</hs:sec>
 ```
 
 ### Step 4: Python 구현 코드 실행
 
-HWPX 파일은 아래 Python 함수 패턴으로 생성한다. 에이전트 환경에서 `create_hwpx_report` 도구를 호출하거나, 직접 코드를 실행하여 파일을 저장한다.
+HWPX 파일은 `hwpx_report_generator.py`의 `create_hwpx_report()` 함수로 생성한다.  
+에이전트 환경에서 해당 함수를 호출하거나 MCP 서버를 통해 도구로 사용한다.
 
 ---
 
@@ -230,9 +297,17 @@ HWPX 파일은 아래 Python 함수 패턴으로 생성한다. 에이전트 환�
 
 ## 제약 사항 및 금지 행동
 
+**보고서 내용 규칙:**
 - ❌ 다채로운 색상(빨강/노랑/초록 등) 사용 금지
 - ❌ 수치 미검증 상태로 표 출력 금지
 - ❌ 서술형 나열을 표 대신 사용 금지
 - ❌ 핵심 요약 없이 세부 내용부터 시작 금지
 - ❌ 파일 생성 실패 시 무음 처리 금지 (반드시 오류 보고)
 - ✅ 데이터가 불충분할 경우: 플레이스홀더(`[입력 필요]`)를 표에 삽입하고 사용자에게 보완 요청
+
+**HWPX 파일 생성 규칙 (위반 시 파일 손상):**
+- ❌ `mimetype` 파일을 ZIP_DEFLATED(압축)로 저장 금지 → 반드시 ZIP_STORED
+- ❌ `container.xml`의 `media-type`을 `application/hwp+xml`로 작성 금지 → 반드시 `application/hwpml-package+xml`
+- ❌ 네임스페이스 URI 임의 변경 금지 → 실제 한컴 표준 URI(`hwpml/2011/...`) 사용
+- ❌ XML 특수문자(`&`, `<`, `>`, `"`) 미이스케이프 금지 → `&amp;`, `&lt;`, `&gt;`, `&quot;`로 변환
+- ❌ section 루트 태그를 `hp:section`으로 작성 금지 → 반드시 `hs:sec`
